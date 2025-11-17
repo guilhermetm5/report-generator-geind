@@ -3,7 +3,7 @@ import Header from "../components/Header";
 import Navbar from "../components/Navbar";
 import ReportCard from "../components/ReportCard";
 import FiltersPanel from "../components/FiltersPanel";
-import { getFilters, downloadExcel } from "../services/api";
+import { getFilters, downloadExcel, downloadPDF } from "../services/api";
 
 export default function Home() {
     const [selectedReport, setSelectedReport] = useState(null);
@@ -24,20 +24,21 @@ export default function Home() {
         {
             name: "Profissionais Ativos",
             icon: "fa-users",
-            endpoint: "profissionais-ativos",
+            endpoint: "profissionais",   // CORRIGIDO
             description: [
                 "Lista profissionais ativos",
-                "Filtrado por Distrito, Unidade, Equipe",
+                "Filtrado por Unidade e Cargo",
             ],
         },
     ];
 
-    const fetchFiltros = async (report) => {
+    const fetchFiltros = async (endpoint) => {
         try {
-            const data = await getFilters(report);
+            const data = await getFilters(endpoint);
             setFiltros(data);
         } catch (e) {
             console.error("Erro ao carregar filtros", e);
+            setFiltros({});
         }
     };
 
@@ -51,17 +52,19 @@ export default function Home() {
         setSelectedFiltros((prev) => ({ ...prev, [nome]: valor }));
     };
 
+    /** 
+     * Lógica dinâmica:
+     * O download só é permitido se TODOS os filtros do backend estiverem preenchidos.
+     */
+    const requiredFilters = Object.keys(filtros);
     const readyToDownload =
-        selectedFiltros.distritos && selectedFiltros.unidades;
+        requiredFilters.length > 0 &&
+        requiredFilters.every((f) => selectedFiltros[f]);
 
     const gerarExcel = async () => {
         if (!readyToDownload) return;
         try {
-            const blob = await downloadExcel(
-                selectedReport.endpoint,
-                selectedFiltros
-            );
-
+            const blob = await downloadExcel(selectedReport.endpoint, selectedFiltros);
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -72,8 +75,18 @@ export default function Home() {
         }
     };
 
-    const gerarPDF = () => {
-        alert("PDF ainda não implementado no backend");
+    const gerarPDF = async () => {
+        if (!readyToDownload) return;
+        try {
+            const blob = await downloadPDF(selectedReport.endpoint, selectedFiltros);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${selectedReport.endpoint}.pdf`;
+            a.click();
+        } catch {
+            alert("Erro ao gerar PDF");
+        }
     };
 
     return (
@@ -90,7 +103,7 @@ export default function Home() {
 
             <div className="w-full max-w-5xl px-6 pb-16">
 
-                {/* LISTA DE RELATÓRIOS */}
+                {/* CARDS DE RELATÓRIO */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                     {reports.map((r) => (
                         <ReportCard
@@ -112,7 +125,7 @@ export default function Home() {
                     />
                 )}
 
-                {/* CARDS EXCEL / PDF */}
+                {/* EXPORTAÇÃO */}
                 {selectedReport && (
                     <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-lg mx-auto">
 
@@ -120,11 +133,10 @@ export default function Home() {
                         <button
                             onClick={gerarExcel}
                             disabled={!readyToDownload}
-                            className={`bg-white p-6 rounded-2xl border shadow flex items-center gap-4 transition ${
-                                readyToDownload
-                                    ? "hover:shadow-xl"
-                                    : "opacity-50 cursor-not-allowed"
-                            }`}
+                            className={`bg-white p-6 rounded-2xl border shadow flex items-center gap-4 transition ${readyToDownload
+                                ? "hover:shadow-xl"
+                                : "opacity-50 cursor-not-allowed"
+                                }`}
                         >
                             <i className="fa-solid fa-file-excel text-4xl text-[#0398B0]"></i>
                             <div>
@@ -141,11 +153,10 @@ export default function Home() {
                         <button
                             onClick={gerarPDF}
                             disabled={!readyToDownload}
-                            className={`bg-white p-6 rounded-2xl border shadow flex items-center gap-4 transition ${
-                                readyToDownload
-                                    ? "hover:shadow-xl"
-                                    : "opacity-50 cursor-not-allowed"
-                            }`}
+                            className={`bg-white p-6 rounded-2xl border shadow flex items-center gap-4 transition ${readyToDownload
+                                ? "hover:shadow-xl"
+                                : "opacity-50 cursor-not-allowed"
+                                }`}
                         >
                             <i className="fa-solid fa-file-pdf text-4xl text-[#41B983]"></i>
                             <div>
